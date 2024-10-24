@@ -2,14 +2,14 @@
 
 ## How do I enable "smart" ingredient handling?
 
-You might have noticed that scaling up a recipe or making a shopping list doesn't by default handle the ingredients in a way you might expect. Depending on your settings, scaling up might yield things like `2 1 cup broth` instead of `2 cup broth`. And making shopping lists from reciepes that have shared ingredients can yield multiple lines of the same ingredient. **But**, mealie has a mechanism to intelligently handle ingredients and make your day better. How?
+You might have noticed that scaling up a recipe or making a shopping list doesn't by default handle the ingredients in a way you might expect. Depending on your settings, scaling up might yield things like `2 1 cup broth` instead of `2 cup broth`. And, making shopping lists from recipes that have shared ingredients can yield multiple lines of the same ingredient. **But**, Mealie has a mechanism to intelligently handle ingredients and make your day better. How?
 ### Set up your Foods and Units
 Do the following just **once**. Doing this applies to your whole group, so be careful.
 
 1. Click on your name in the upper left corner to get to your settings
 2. In the bottom right, select `Manage Data`
 3. In the Management page, make sure that a little orange button says `Foods`
-4. If your Foods database is empty, click `Seed` and choose your language. You should end up with a list of foods. (Wait  bit for seeding to happen, and try not to seed more than once or you will have duplicates)
+4. If your Foods database is empty, click `Seed` and choose your language. You should end up with a list of foods. (Wait a bit for seeding to happen, and try not to seed more than once or you will have duplicates)
 5. Click the little orange `Foods` button and now choose `Units`.
 6. Click `Seed` and choose your language. You should end up with a list of units (e.g. `tablespoon`)
 
@@ -33,9 +33,9 @@ Do the following for each recipe you want to intelligently handle ingredients.
 
 Scaling up this recipe or adding it to a Shopping List will now smartly take care of ingredient amounts and duplicate combinations.
 
-## Is it Safe to Upgrade Mealie?
+## Is it safe to upgrade Mealie?
 
-Yes. If you are using the v1 branches (including beta), you can upgrade to the latest version of Mealie without performing a site Export/Restore. This process was required in previous versions of Mealie, however we've automated the database migration process to make it easier to upgrade. Not that if you were using the v0.5.x version, you CANNOT upgrade to the latest version automatically. You must follow the migration instructions in the documentation.
+Yes. If you are using the v1 branches (including beta), you can upgrade to the latest version of Mealie without performing a site Export/Restore. This process was required in previous versions of Mealie, however we've automated the database migration process to make it easier to upgrade. Note that if you were using the v0.5.x version, you CANNOT upgrade to the latest version automatically. You must follow the migration instructions in the documentation.
 
 - [Migration From v0.5.x](./migrating-to-mealie-v1.md)
 
@@ -45,7 +45,7 @@ You can change the theme by settings the environment variables.
 
 - [Backend Config - Themeing](./installation/backend-config.md#themeing)
 
-## How can I change the Login Session Timeout?
+## How can I change the login session timeout?
 
 Login session can be configured by setting the `TOKEN_TIME` variable on the backend container.
 
@@ -53,7 +53,7 @@ Login session can be configured by setting the `TOKEN_TIME` variable on the back
 
 ## Can I serve Mealie on a subpath?
 
-No. Due to limitations from the Javascript Framework, mealie doesn't support serving Mealie on a subpath.
+No. Due to limitations from the JavaScript Framework, Mealie doesn't support serving Mealie on a subpath.
 
 ## Can I install Mealie without docker?
 
@@ -98,13 +98,14 @@ python /app/mealie/scripts/change_password.py
 
 Follow the [steps above](#how-can-i-change-my-password) for changing your password. You will be prompted if you would like to switch your authentication method back to local auth so you can log in again.
 
-## How do private groups and recipes work?
+## How do private groups, households, and recipes work?
 
 Managing private groups and recipes can be confusing. The following diagram and notes should help explain how they work to determine if a recipe can be shared publicly.
 
 - Private links that are generated from the recipe page using the `Share` button bypass all group and recipe permissions
 - Private groups block all access to recipes, including those that are public, except as noted above.
-- Groups with "Allow users outside of your group to see your recipes" disabled block all access to recipes, except as noted above.
+- Private households, similar to private groups, block all access to recipes, except as noted above.
+- Households with "Allow users outside of your group to see your recipes" disabled block all access to recipes, except as noted above.
 - Private recipes block all access to the recipe from public links. This does not affect Private Links.
 
 ```mermaid
@@ -112,7 +113,8 @@ stateDiagram-v2
   r1: Request Access
   p1: Using Private Link?
   p2: Is Group Private?
-  p3: Is Recipe Private?
+  p3: Is Household Private?
+  p4: Is Recipe Private?
   s1: Deny Access
   n1: Allow Access
 
@@ -125,13 +127,16 @@ stateDiagram-v2
   p2 --> p3: No
 
   p3 --> s1: Yes
-  p3 --> n1: No
+  p3 --> p4: No
+
+  p4 --> s1: Yes
+  p4 --> n1: No
 ```
 
-For more information, check out the [Permissions and Public Access guide](./usage/permissions-and-public-access.md).
+For more information on public access, check out the [Permissions and Public Access guide](./usage/permissions-and-public-access.md). For more information on groups vs. households, check out the [Groups and Households](./features.md#groups-and-households) section in the Features guide.
 
-## Can I use fail2ban with mealie?
-Yes, mealie is configured to properly forward external IP addresses into the `mealie.log` logfile. Note that due to restrictions in docker, IP address forwarding only works on Linux.
+## Can I use fail2ban with Mealie?
+Yes, Mealie is configured to properly forward external IP addresses into the `mealie.log` logfile. Note that due to restrictions in docker, IP address forwarding only works on Linux.
 
 Your fail2ban usage should look like the following:
 ```
@@ -139,13 +144,21 @@ Use      datepattern : %d-%b-%y %H:%M:%S : Day-MON-Year2 24hour:Minute:Second
 Use   failregex line : ^ERROR:\s+Incorrect username or password from <HOST>
 ```
 
-## Why An API?
-An API allows integration into applications like [Home Assistant](https://www.home-assistant.io/) that can act as notification engines to provide custom notifications based on Meal Plan data to remind you to defrost the chicken, marinade the steak, or start the CrockPot. Additionally, you can access nearly any backend service via the API giving you total control to extend the application. To explore the API spin up your server and navigate to http://yourserver.com/docs for interactive API documentation.
+## Why an API?
+An API allows integration into applications like [Home Assistant](https://www.home-assistant.io/) that can act as notification engines to provide custom notifications based on Meal Plan data to remind you to defrost the chicken, marinate the steak, or start the CrockPot. Additionally, you can access nearly any backend service via the API giving you total control to extend the application. To explore the API spin up your server and navigate to http://yourserver.com/docs for interactive API documentation.
 
-## Why a Database?
-Some users of static-site generator applications like ChowDown have expressed concerns about their data being stuck in a database. Considering this is a new project, it is a valid concern to be worried about your data. Mealie specifically addresses this concern by provided automatic daily backups that export your data in json, plain-text markdown files, and/or custom Jinja2 templates. **This puts you in control of how your data is represented** when exported from Mealie, which means you can easily migrate to any other service provided Mealie doesn't work for you.
+## Why a database?
+Some users of static-site generator applications like ChowDown have expressed concerns about their data being stuck in a database. Considering this is a new project, it is a valid concern to be worried about your data. Mealie specifically addresses this concern by providing automatic daily backups that export your data in json, plain-text markdown files, and/or custom Jinja2 templates. **This puts you in control of how your data is represented** when exported from Mealie, which means you can easily migrate to any other service provided Mealie doesn't work for you.
 
 As to why we need a database?
 
 - **Developer Experience:** Without a database, a lot of the work to maintain your data is taken on by the developer instead of a battle-tested platform for storing data.
 - **Multi User Support:** With a solid database as backend storage for your data, Mealie can better support multi-user sites and avoid read/write access errors when multiple actions are taken at the same time.
+
+## Why is there no "Keep Screen Alive" button when I access a recipe?
+You've perhaps visited the Mealie Demo and noticed that it had a "Keep Screen Alive" button, but it doesn't show up in your own Mealie instance.
+There are typically two possible reasons for this:
+1. You're accessing your Mealie instance without using HTTPS. The Wake Lock API is only available if HTTPS is used. Read more here: https://developer.mozilla.org/en-US/docs/Web/API/Screen_Wake_Lock_API
+2. You're accessing your Mealie instance on a browser which doesn't support the API. You can test this here: https://vueuse.org/core/useWakeLock/#demo
+
+Solving the above points will most likely resolve your issues. However, if you're still having problems, you are welcome to create an issue. Just remember to add that you've tried the above two options first in your description.

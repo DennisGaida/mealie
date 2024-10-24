@@ -1,4 +1,3 @@
-version: "3.4"
 services:
   mealie:
     container_name: mealie
@@ -24,7 +23,6 @@ services:
       POSTGRES_SERVER: postgres
       POSTGRES_PORT: 5432
       POSTGRES_DB: mealie
-
       # =====================================
       # Email Configuration
       # SMTP_HOST=

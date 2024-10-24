@@ -1,6 +1,11 @@
+import logging
+import os
 import secrets
+from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any, NamedTuple
 
+from dateutil.tz import tzlocal
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -9,11 +14,16 @@ from mealie.core.settings.themes import Theme
 from .db_providers import AbstractDBProvider, db_provider_factory
 
 
-def determine_secrets(data_dir: Path, production: bool) -> str:
+class ScheduleTime(NamedTuple):
+    hour: int
+    minute: int
+
+
+def determine_secrets(data_dir: Path, secret: str, production: bool) -> str:
     if not production:
         return "shh-secret-test-key"
 
-    secrets_file = data_dir.joinpath(".secret")
+    secrets_file = data_dir.joinpath(secret)
     if secrets_file.is_file():
         with open(secrets_file) as f:
             return f.read()
@@ -25,10 +35,54 @@ def determine_secrets(data_dir: Path, production: bool) -> str:
         return new_secret
 
 
-class AppSettings(BaseSettings):
+def get_secrets_dir() -> str | None:
+    """
+    Returns a directory to load secret settings from, or `None` if the secrets
+    directory does not exist or cannot be accessed.
+    """
+    # Avoid a circular import by importing here instead of at the file's top-level.
+    # get_logger -> AppSettings -> get_logger
+    from mealie.core.root_logger import get_logger
+
+    logger = get_logger()
+
+    secrets_dir = "/run/secrets"
+
+    # Check that the secrets directory exists.
+    if not os.path.exists(secrets_dir):
+        logger.warning(f"Secrets directory '{secrets_dir}' does not exist")
+        return None
+
+    # Likewise, check we have permission to read from the secrets directory.
+    if not os.access(secrets_dir, os.R_OK):
+        logger.warning(f"Secrets directory '{secrets_dir}' cannot be read from. Check permissions")
+        return None
+
+    # The secrets directory exists and can be accessed.
+    return secrets_dir
+
+
+class AppLoggingSettings(BaseSettings):
+    """
+    Subset of AppSettings to only access logging-related settings.
+
+    This is separated out from AppSettings to allow logging during construction
+    of AppSettings.
+    """
+
+    TESTING: bool = False
+    PRODUCTION: bool
+
+    LOG_CONFIG_OVERRIDE: Path | None = None
+    """path to custom logging configuration file"""
+
+    LOG_LEVEL: str = "info"
+    """corresponds to standard Python log levels"""
+
+
+class AppSettings(AppLoggingSettings):
     theme: Theme = Theme()
 
-    PRODUCTION: bool
     BASE_URL: str = "http://localhost:8080"
     """trailing slashes are trimmed (ex. `http://localhost:8080/` becomes ``http://localhost:8080`)"""
 
@@ -46,18 +100,47 @@ class AppSettings(BaseSettings):
     """time in hours"""
 
     SECRET: str
-
-    LOG_CONFIG_OVERRIDE: Path | None = None
-    """path to custom logging configuration file"""
-
-    LOG_LEVEL: str = "info"
-    """corresponds to standard Python log levels"""
+    SESSION_SECRET: str
 
     GIT_COMMIT_HASH: str = "unknown"
 
     ALLOW_SIGNUP: bool = False
 
     DAILY_SCHEDULE_TIME: str = "23:45"
+    """Local server time, in HH:MM format. See `DAILY_SCHEDULE_TIME_UTC` for the parsed UTC equivalent"""
+
+    @property
+    def logger(self) -> logging.Logger:
+        # Avoid a circular import by importing here instead of at the file's top-level.
+        # get_logger -> AppSettings -> get_logger
+        from mealie.core.root_logger import get_logger
+
+        return get_logger()
+
+    @property
+    def DAILY_SCHEDULE_TIME_UTC(self) -> ScheduleTime:
+        """The DAILY_SCHEDULE_TIME in UTC, parsed into hours and minutes"""
+
+        # parse DAILY_SCHEDULE_TIME into hours and minutes
+        try:
+            hour_str, minute_str = self.DAILY_SCHEDULE_TIME.split(":")
+            local_hour = int(hour_str)
+            local_minute = int(minute_str)
+        except ValueError:
+            local_hour = 23
+            local_minute = 45
+            self.logger.exception(
+                f"Unable to parse {self.DAILY_SCHEDULE_TIME=} as HH:MM; defaulting to {local_hour}:{local_minute}"
+            )
+
+        # DAILY_SCHEDULE_TIME is in local time, so we convert it to UTC
+        local_tz = tzlocal()
+        now = datetime.now(local_tz)
+        local_time = now.replace(hour=local_hour, minute=local_minute)
+        utc_time = local_time.astimezone(timezone.utc)
+
+        self.logger.debug(f"Local time: {local_hour}:{local_minute} | UTC time: {utc_time.hour}:{utc_time.minute}")
+        return ScheduleTime(utc_time.hour, utc_time.minute)
 
     # ===============================================
     # Security Configuration
@@ -97,6 +180,7 @@ class AppSettings(BaseSettings):
         return self.DB_PROVIDER.db_url_public if self.DB_PROVIDER else None
 
     DEFAULT_GROUP: str = "Home"
+    DEFAULT_HOUSEHOLD: str = "Family"
 
     _DEFAULT_EMAIL: str = "changeme@example.com"
     """
@@ -185,6 +269,7 @@ class AppSettings(BaseSettings):
     # OIDC Configuration
     OIDC_AUTH_ENABLED: bool = False
     OIDC_CLIENT_ID: str | None = None
+    OIDC_CLIENT_SECRET: str | None = None
     OIDC_CONFIGURATION_URL: str | None = None
     OIDC_SIGNUP_ENABLED: bool = True
     OIDC_USER_GROUP: str | None = None
@@ -192,10 +277,13 @@ class AppSettings(BaseSettings):
     OIDC_AUTO_REDIRECT: bool = False
     OIDC_PROVIDER_NAME: str = "OAuth"
     OIDC_REMEMBER_ME: bool = False
-    OIDC_SIGNING_ALGORITHM: str = "RS256"
     OIDC_USER_CLAIM: str = "email"
     OIDC_GROUPS_CLAIM: str | None = "groups"
     OIDC_TLS_CACERTFILE: str | None = None
+
+    @property
+    def OIDC_REQUIRES_GROUP_CLAIM(self) -> bool:
+        return self.OIDC_USER_GROUP is not None or self.OIDC_ADMIN_GROUP is not None
 
     @property
     def OIDC_READY(self) -> bool:
@@ -203,12 +291,14 @@ class AppSettings(BaseSettings):
 
         required = {
             self.OIDC_CLIENT_ID,
+            self.OIDC_CLIENT_SECRET,
             self.OIDC_CONFIGURATION_URL,
             self.OIDC_USER_CLAIM,
         }
         not_none = None not in required
         valid_group_claim = True
-        if (not self.OIDC_USER_GROUP or not self.OIDC_ADMIN_GROUP) and not self.OIDC_GROUPS_CLAIM:
+
+        if self.OIDC_REQUIRES_GROUP_CLAIM and self.OIDC_GROUPS_CLAIM is None:
             valid_group_claim = False
 
         return self.OIDC_AUTH_ENABLED and not_none and valid_group_claim
@@ -222,6 +312,12 @@ class AppSettings(BaseSettings):
     """Your OpenAI API key. Required to enable OpenAI features"""
     OPENAI_MODEL: str = "gpt-4o"
     """Which OpenAI model to send requests to. Leave this unset for most usecases"""
+    OPENAI_CUSTOM_HEADERS: dict[str, str] = {}
+    """Custom HTTP headers to send with each OpenAI request"""
+    OPENAI_CUSTOM_PARAMS: dict[str, Any] = {}
+    """Custom HTTP parameters to send with each OpenAI request"""
+    OPENAI_ENABLE_IMAGE_SERVICES: bool = True
+    """Whether to enable image-related features in OpenAI"""
     OPENAI_WORKERS: int = 2
     """
     Number of OpenAI workers per request. Higher values may increase
@@ -231,6 +327,10 @@ class AppSettings(BaseSettings):
     """
     Sending database data may increase accuracy in certain requests,
     but will incur additional API costs
+    """
+    OPENAI_REQUEST_TIMEOUT: int = 60
+    """
+    The number of seconds to wait for an OpenAI request to complete before cancelling the request
     """
 
     # ===============================================
@@ -251,11 +351,7 @@ class AppSettings(BaseSettings):
         """Validates OpenAI settings are all set"""
         return bool(self.OPENAI_API_KEY and self.OPENAI_MODEL)
 
-    # ===============================================
-    # Testing Config
-
-    TESTING: bool = False
-    model_config = SettingsConfigDict(arbitrary_types_allowed=True, extra="allow", secrets_dir="/run/secrets")
+    model_config = SettingsConfigDict(arbitrary_types_allowed=True, extra="allow")
 
 
 def app_settings_constructor(data_dir: Path, production: bool, env_file: Path, env_encoding="utf-8") -> AppSettings:
@@ -264,10 +360,17 @@ def app_settings_constructor(data_dir: Path, production: bool, env_file: Path, e
     required dependencies into the AppSettings object and nested child objects. AppSettings should not be substantiated
     directly, but rather through this factory function.
     """
+    secret_settings = {
+        "SECRET": determine_secrets(data_dir, ".secret", production),
+        "SESSION_SECRET": determine_secrets(data_dir, ".session_secret", production),
+    }
     app_settings = AppSettings(
         _env_file=env_file,  # type: ignore
         _env_file_encoding=env_encoding,  # type: ignore
-        **{"SECRET": determine_secrets(data_dir, production)},
+        # `get_secrets_dir` must be called here rather than within `AppSettings`
+        # to avoid a circular import.
+        _secrets_dir=get_secrets_dir(),  # type: ignore
+        **secret_settings,
     )
 
     app_settings.DB_PROVIDER = db_provider_factory(

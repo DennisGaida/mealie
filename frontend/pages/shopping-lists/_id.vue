@@ -1,5 +1,17 @@
 <template>
   <v-container v-if="shoppingList" class="md-container">
+    <BaseDialog v-model="checkAllDialog" :title="$tc('general.confirm')" @confirm="checkAll">
+      <v-card-text>{{ $t('shopping-list.are-you-sure-you-want-to-check-all-items') }}</v-card-text>
+    </BaseDialog>
+
+    <BaseDialog v-model="uncheckAllDialog" :title="$tc('general.confirm')" @confirm="uncheckAll">
+      <v-card-text>{{ $t('shopping-list.are-you-sure-you-want-to-uncheck-all-items') }}</v-card-text>
+    </BaseDialog>
+
+    <BaseDialog v-model="deleteCheckedDialog" :title="$tc('general.confirm')" @confirm="deleteChecked">
+      <v-card-text>{{ $t('shopping-list.are-you-sure-you-want-to-delete-checked-items') }}</v-card-text>
+    </BaseDialog>
+
     <BasePageTitle divider>
       <template #header>
         <v-container>
@@ -15,6 +27,11 @@
       </template>
       <template #title> {{ shoppingList.name }} </template>
     </BasePageTitle>
+    <BannerWarning
+      v-if="$nuxt.isOffline"
+      :title="$tc('shopping-list.you-are-offline')"
+      :description="$tc('shopping-list.you-are-offline-description')"
+    />
 
     <!-- Viewer -->
     <section v-if="!edit" class="py-2">
@@ -39,15 +56,19 @@
 
       <!-- View By Label -->
       <div v-else>
-        <div v-for="(value, key, idx) in itemsByLabel" :key="key" class="mb-6">
-          <div @click="toggleShowChecked()">
-            <span v-if="idx || key !== $tc('shopping-list.no-label')">
-              <v-icon :color="getLabelColor(value[0])">
-                {{ $globals.icons.tags }}
-              </v-icon>
-            </span>
-            {{ key }}
+        <div v-for="(value, key) in itemsByLabel" :key="key" class="mb-6">
+          <div class="text-left">
+            <v-btn
+              :color="getLabelColor(value[0]) ? getLabelColor(value[0]) : '#959595'"
+              :style="{
+                'color': getTextColor(getLabelColor(value[0])),
+                'letter-spacing': 'normal',
+              }"
+            >
+              {{ key }}
+          </v-btn>
           </div>
+          <v-divider/>
           <draggable :value="value" handle=".handle" delay="250" :delay-on-touch-only="true" @start="loadingCounter += 1" @end="loadingCounter -= 1" @input="updateIndexUncheckedByLabel(key, $event)">
             <v-lazy v-for="(item, index) in value" :key="item.id" class="ml-2 my-2">
               <ShoppingListItem
@@ -121,6 +142,7 @@
       <div v-else class="mt-4 d-flex justify-end">
         <BaseButton
           v-if="preferences.viewByLabel" edit class="mr-2"
+          :disabled="$nuxt.isOffline"
           @click="toggleReorderLabelsDialog">
           <template #icon> {{ $globals.icons.tags }} </template>
           {{ $t('shopping-list.reorder-labels') }}
@@ -164,10 +186,16 @@
               text: $tc('shopping-list.uncheck-all-items'),
               event: 'uncheck',
             },
+            {
+              icon: $globals.icons.checkboxOutline,
+              text: $tc('shopping-list.check-all-items'),
+              event: 'check',
+            },
           ]"
           @edit="edit = true"
-          @delete="deleteChecked"
-          @uncheck="uncheckAll"
+          @delete="openDeleteChecked"
+          @uncheck="openUncheckAll"
+          @check="openCheckAll"
           @sort-by-labels="sortByLabels"
           @copy-plain="copyListItems('plain')"
           @copy-markdown="copyListItems('markdown')"
@@ -216,10 +244,10 @@
           {{ $tc('shopping-list.linked-recipes-count', shoppingList.recipeReferences ? shoppingList.recipeReferences.length : 0) }}
         </div>
         <v-divider class="my-4"></v-divider>
-        <RecipeList :recipes="Array.from(recipeMap.values())" show-description>
+        <RecipeList :recipes="Array.from(recipeMap.values())" show-description :disabled="$nuxt.isOffline">
           <template v-for="(recipe, index) in recipeMap.values()" #[`actions-${recipe.id}`]>
             <v-list-item-action :key="'item-actions-decrease' + recipe.id">
-              <v-btn icon @click.prevent="removeRecipeReferenceToList(recipe.id)">
+              <v-btn icon :disabled="$nuxt.isOffline" @click.prevent="removeRecipeReferenceToList(recipe.id)">
                 <v-icon color="grey lighten-1">{{ $globals.icons.minus }}</v-icon>
               </v-btn>
             </v-list-item-action>
@@ -227,7 +255,7 @@
               {{ shoppingList.recipeReferences[index].recipeQuantity }}
             </div>
             <v-list-item-action :key="'item-actions-increase' + recipe.id">
-              <v-btn icon @click.prevent="addRecipeReferenceToList(recipe.id)">
+              <v-btn icon :disabled="$nuxt.isOffline" @click.prevent="addRecipeReferenceToList(recipe.id)">
                 <v-icon color="grey lighten-1">{{ $globals.icons.createAlt }}</v-icon>
               </v-btn>
             </v-list-item-action>
@@ -238,7 +266,11 @@
 
     <v-lazy>
       <div class="d-flex justify-end">
-        <BaseButton edit @click="toggleSettingsDialog">
+        <BaseButton
+          edit
+          :disabled="$nuxt.isOffline"
+          @click="toggleSettingsDialog"
+        >
           <template #icon> {{ $globals.icons.cog }} </template>
           {{ $t('general.settings') }}
         </BaseButton>
@@ -246,28 +278,36 @@
     </v-lazy>
 
     <v-lazy>
-      <div class="d-flex justify-end mt-10">
-        <ButtonLink :to="`/group/data/labels`" :text="$tc('shopping-list.manage-labels')" :icon="$globals.icons.tags" />
+      <div v-if="$nuxt.isOnline" class="d-flex justify-end mt-10">
+        <ButtonLink
+          :to="`/group/data/labels`"
+          :text="$tc('shopping-list.manage-labels')"
+          :icon="$globals.icons.tags"
+        />
       </div>
     </v-lazy>
+    <WakelockSwitch/>
   </v-container>
 </template>
 
 <script lang="ts">
 import draggable from "vuedraggable";
 
-import { defineComponent, useRoute, computed, ref, onUnmounted, useContext } from "@nuxtjs/composition-api";
+import { defineComponent, useRoute, computed, ref, toRefs, onUnmounted, useContext, reactive } from "@nuxtjs/composition-api";
 import { useIdle, useToggle } from "@vueuse/core";
 import { useCopyList } from "~/composables/use-copy";
 import { useUserApi } from "~/composables/api";
 import MultiPurposeLabelSection from "~/components/Domain/ShoppingList/MultiPurposeLabelSection.vue"
 import ShoppingListItem from "~/components/Domain/ShoppingList/ShoppingListItem.vue";
-import { ShoppingListItemCreate, ShoppingListItemOut, ShoppingListMultiPurposeLabelOut, ShoppingListOut } from "~/lib/api/types/group";
-import { UserSummary } from "~/lib/api/types/user";
+import { ShoppingListItemOut, ShoppingListMultiPurposeLabelOut, ShoppingListOut } from "~/lib/api/types/household";
+import { UserOut } from "~/lib/api/types/user";
 import RecipeList from "~/components/Domain/Recipe/RecipeList.vue";
 import ShoppingListItemEditor from "~/components/Domain/ShoppingList/ShoppingListItemEditor.vue";
 import { useFoodStore, useLabelStore, useUnitStore } from "~/composables/store";
+import { useShoppingListItemActions } from "~/composables/use-shopping-list-item-actions";
 import { useShoppingListPreferences } from "~/composables/use-users/preferences";
+import { getTextColor } from "~/composables/use-text-color";
+import { uuid4 } from "~/composables/use-utils";
 
 type CopyTypes = "plain" | "markdown";
 
@@ -302,19 +342,38 @@ export default defineComponent({
     const route = useRoute();
     const groupSlug = computed(() => route.value.params.groupSlug || $auth.user?.groupSlug || "");
     const id = route.value.params.id;
+    const shoppingListItemActions = useShoppingListItemActions(id);
+
+    const state = reactive({
+      checkAllDialog: false,
+      uncheckAllDialog: false,
+      deleteCheckedDialog: false,
+    });
 
     // ===============================================================
     // Shopping List Actions
 
     const shoppingList = ref<ShoppingListOut | null>(null);
     async function fetchShoppingList() {
-      const { data } = await userApi.shopping.lists.getOne(id);
+      const data = await shoppingListItemActions.getList();
       return data;
     }
 
     async function refresh() {
       loadingCounter.value += 1;
-      const newListValue = await fetchShoppingList();
+      try {
+        await shoppingListItemActions.process();
+      } catch (error) {
+        console.error(error);
+      }
+
+      let newListValue = null
+      try {
+        newListValue = await fetchShoppingList();
+      } catch (error) {
+        console.error(error);
+      }
+
       loadingCounter.value -= 1;
 
       // only update the list with the new value if we're not loading, to prevent UI jitter
@@ -322,18 +381,21 @@ export default defineComponent({
         return;
       }
 
-      shoppingList.value = newListValue;
+      // if we're not connected to the network, this will be null, so we don't want to clear the list
+      if (newListValue) {
+        shoppingList.value = newListValue;
+      }
+
       updateListItemOrder();
     }
 
     function updateListItemOrder() {
       if (!preserveItemOrder.value) {
         groupAndSortListItemsByFood();
-        updateItemsByLabel();
       } else {
         sortListItems();
-        updateItemsByLabel();
       }
+      updateItemsByLabel();
     }
 
     // constantly polls for changes
@@ -367,11 +429,13 @@ export default defineComponent({
 
     // start polling
     loadingCounter.value -= 1;
-    const pollFrequency = 5000;
     pollForChanges();  // populate initial list
 
+    // max poll time = pollFrequency * maxAttempts = 24 hours
+    // we use a long max poll time since polling stops when the user is idle anyway
+    const pollFrequency = 5000;
+    const maxAttempts = 17280;
     let attempts = 0;
-    const maxAttempts = 3;
 
     const pollTimer: ReturnType<typeof setInterval> = setInterval(() => { pollForChanges() }, pollFrequency);
     onUnmounted(() => {
@@ -386,7 +450,7 @@ export default defineComponent({
         unchecked: shoppingList.value?.listItems?.filter((item) => !item.checked) ?? [],
         checked: shoppingList.value?.listItems
           ?.filter((item) => item.checked)
-          .sort((a, b) => (a.updateAt < b.updateAt ? 1 : -1))
+          .sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1))
           ?? [],
       };
     });
@@ -448,8 +512,34 @@ export default defineComponent({
 
     // =====================================
     // Check / Uncheck All
+    function openCheckAll() {
+      if (shoppingList.value?.listItems?.some((item) => !item.checked)) {
+        state.checkAllDialog = true;
+      }
+    }
+
+    function checkAll() {
+      state.checkAllDialog = false;
+      let hasChanged = false;
+      shoppingList.value?.listItems?.forEach((item) => {
+        if (!item.checked) {
+          hasChanged = true;
+          item.checked = true;
+        }
+      });
+      if (hasChanged) {
+        updateListItems();
+      }
+    }
+
+    function openUncheckAll() {
+      if (shoppingList.value?.listItems?.some((item) => item.checked)) {
+        state.uncheckAllDialog = true;
+      }
+    }
 
     function uncheckAll() {
+      state.uncheckAllDialog = false;
       let hasChanged = false;
       shoppingList.value?.listItems?.forEach((item) => {
         if (item.checked) {
@@ -459,6 +549,12 @@ export default defineComponent({
       });
       if (hasChanged) {
         updateListItems();
+      }
+    }
+
+    function openDeleteChecked() {
+      if (shoppingList.value?.listItems?.some((item) => item.checked)) {
+        state.deleteCheckedDialog = true;
       }
     }
 
@@ -512,9 +608,9 @@ export default defineComponent({
 
     const localLabels = ref<ShoppingListMultiPurposeLabelOut[]>()
 
-    const { labels: allLabels } = useLabelStore();
-    const { units: allUnits } = useUnitStore();
-    const { foods: allFoods } = useFoodStore();
+    const { store: allLabels } = useLabelStore();
+    const { store: allUnits } = useUnitStore();
+    const { store: allFoods } = useFoodStore();
 
     function getLabelColor(item: ShoppingListItemOut | null) {
       return item?.label?.color;
@@ -599,6 +695,14 @@ export default defineComponent({
       items: ShoppingListItemOut[];
     }
 
+    function sortItems(a: ShoppingListItemOut | ListItemGroup, b: ShoppingListItemOut | ListItemGroup) {
+      return (
+        ((a.position || 0) > (b.position || 0)) ||
+        ((a.createdAt || "") < (b.createdAt || ""))
+        ? 1 : -1
+      );
+    }
+
     function groupAndSortListItemsByFood() {
       if (!shoppingList.value?.listItems?.length) {
         return;
@@ -622,16 +726,14 @@ export default defineComponent({
         }
       });
 
-      // sort group items by position ascending, then createdAt descending
       const listItemGroups = Array.from(listItemGroupsMap.values());
-      listItemGroups.sort((a, b) => (a.position > b.position || a.createdAt < b.createdAt ? 1 : -1));
+      listItemGroups.sort(sortItems);
 
-      // sort group items by position ascending, then createdAt descending, and aggregate them
+      // sort group items, then aggregate them
       const sortedItems: ShoppingListItemOut[] = [];
       let nextPosition = 0;
       listItemGroups.forEach((listItemGroup) => {
-        // @ts-ignore none of these fields are undefined
-        listItemGroup.items.sort((a, b) => (a.position > b.position || a.createdAt < b.createdAt ? 1 : -1));
+        listItemGroup.items.sort(sortItems);
         listItemGroup.items.forEach((item) => {
           item.position = nextPosition;
           nextPosition += 1;
@@ -647,9 +749,7 @@ export default defineComponent({
         return;
       }
 
-      // sort by position ascending, then createdAt descending
-      // @ts-ignore none of these fields are undefined
-      shoppingList.value.listItems.sort((a, b) => (a.position > b.position || a.createdAt < b.createdAt ? 1 : -1))
+      shoppingList.value.listItems.sort(sortItems)
     }
 
     function updateItemsByLabel() {
@@ -697,16 +797,6 @@ export default defineComponent({
 
       itemsByLabel.value = itemsSorted;
     }
-
-    async function refreshLabels() {
-      const { data } = await userApi.multiPurposeLabels.getAll();
-
-      if (data) {
-        allLabels.value = data.items ?? [];
-      }
-    }
-
-    refreshLabels();
 
     // =====================================
     // Add/Remove Recipe References
@@ -756,7 +846,7 @@ export default defineComponent({
      * checked it will also append that item to the end of the list so that the unchecked items
      * are at the top of the list.
      */
-    async function saveListItem(item: ShoppingListItemOut) {
+    function saveListItem(item: ShoppingListItemOut) {
       if (!shoppingList.value) {
         return;
       }
@@ -769,8 +859,7 @@ export default defineComponent({
         item.position = shoppingList.value.listItems.length;
 
         // set a temporary updatedAt timestamp prior to refresh so it appears at the top of the checked items
-        item.updateAt = new Date().toISOString();
-        item.updateAt = item.updateAt.substring(0, item.updateAt.length-1);
+        item.updatedAt = new Date().toISOString();
       }
 
       // make updates reflect immediately
@@ -783,38 +872,34 @@ export default defineComponent({
       }
 
       updateListItemOrder();
-
-      loadingCounter.value += 1;
-      const { data } = await userApi.shopping.items.updateOne(item.id, item);
-      loadingCounter.value -= 1;
-
-      if (data) {
-        refresh();
-      }
+      shoppingListItemActions.updateItem(item);
+      refresh();
     }
 
-    async function deleteListItem(item: ShoppingListItemOut) {
+    function deleteListItem(item: ShoppingListItemOut) {
       if (!shoppingList.value) {
         return;
       }
 
-      loadingCounter.value += 1;
-      const { data } = await userApi.shopping.items.deleteOne(item.id);
-      loadingCounter.value -= 1;
+      shoppingListItemActions.deleteItem(item);
 
-      if (data) {
-        refresh();
+      // remove the item from the list immediately so the user sees the change
+      if (shoppingList.value.listItems) {
+        shoppingList.value.listItems = shoppingList.value.listItems.filter((itm) => itm.id !== item.id);
       }
+
+      refresh();
     }
 
     // =====================================
     // Create New Item
 
     const createEditorOpen = ref(false);
-    const createListItemData = ref<ShoppingListItemCreate>(listItemFactory());
+    const createListItemData = ref<ShoppingListItemOut>(listItemFactory());
 
-    function listItemFactory(isFood = false): ShoppingListItemCreate {
+    function listItemFactory(isFood = false): ShoppingListItemOut {
       return {
+        id: uuid4(),
         shoppingListId: id,
         checked: false,
         position: shoppingList.value?.listItems?.length || 1,
@@ -827,7 +912,7 @@ export default defineComponent({
       };
     }
 
-    async function createListItem() {
+    function createListItem() {
       if (!shoppingList.value) {
         return;
       }
@@ -843,13 +928,22 @@ export default defineComponent({
       createListItemData.value.position = shoppingList.value?.listItems?.length
         ? (shoppingList.value.listItems.reduce((a, b) => (a.position || 0) > (b.position || 0) ? a : b).position || 0) + 1
         : 0;
-      const { data } = await userApi.shopping.items.createOne(createListItemData.value);
+
+      createListItemData.value.createdAt = new Date().toISOString();
+      createListItemData.value.updatedAt = createListItemData.value.createdAt;
+
+      updateListItemOrder();
+
+      shoppingListItemActions.createItem(createListItemData.value);
       loadingCounter.value -= 1;
 
-      if (data) {
-        createListItemData.value = listItemFactory(createListItemData.value.isFood || false);
-        refresh();
-      }
+      if (shoppingList.value.listItems) {
+          // add the item to the list immediately so the user sees the change
+          shoppingList.value.listItems.push(createListItemData.value);
+          updateListItemOrder();
+        }
+      createListItemData.value = listItemFactory(createListItemData.value.isFood || false);
+      refresh();
     }
 
     function updateIndexUnchecked(uncheckedItems: ShoppingListItemOut[]) {
@@ -885,21 +979,24 @@ export default defineComponent({
       return updateIndexUnchecked(allUncheckedItems);
     }
 
-    async function deleteListItems(items: ShoppingListItemOut[]) {
+    function deleteListItems(items: ShoppingListItemOut[]) {
       if (!shoppingList.value) {
         return;
       }
 
-      loadingCounter.value += 1;
-      const { data } = await userApi.shopping.items.deleteMany(items);
-      loadingCounter.value -= 1;
-
-      if (data) {
-        refresh();
+      items.forEach((item) => {
+        shoppingListItemActions.deleteItem(item);
+      });
+      // remove the items from the list immediately so the user sees the change
+      if (shoppingList.value?.listItems) {
+        const deletedItems = new Set(items.map(item => item.id));
+        shoppingList.value.listItems = shoppingList.value.listItems.filter((itm) => !deletedItems.has(itm.id));
       }
+
+      refresh();
     }
 
-    async function updateListItems() {
+    function updateListItems() {
       if (!shoppingList.value?.listItems) {
         return;
       }
@@ -910,28 +1007,25 @@ export default defineComponent({
         return itm;
       });
 
-      loadingCounter.value += 1;
-      const { data } = await userApi.shopping.items.updateMany(shoppingList.value.listItems);
-      loadingCounter.value -= 1;
-
-      if (data) {
-        refresh();
-      }
+      shoppingList.value.listItems.forEach((item) => {
+        shoppingListItemActions.updateItem(item);
+      });
+      refresh();
     }
 
     // ===============================================================
     // Shopping List Settings
 
-    const allUsers = ref<UserSummary[]>([]);
+    const allUsers = ref<UserOut[]>([]);
     const currentUserId = ref<string | undefined>();
     async function fetchAllUsers() {
-      const { data } = await userApi.users.getGroupUsers(1, -1, { orderBy: "full_name", orderDirection: "asc" });
+      const { data } = await userApi.households.fetchMembers();
       if (!data) {
         return;
       }
 
       // update current user
-      allUsers.value = data.items;
+      allUsers.value = data.items.sort((a, b) => ((a.fullName || "") < (b.fullName || "") ? -1 : 1));
       currentUserId.value = shoppingList.value?.userId;
     }
 
@@ -953,6 +1047,7 @@ export default defineComponent({
     }
 
     return {
+      ...toRefs(state),
       addRecipeReferenceToList,
       updateListItems,
       allLabels,
@@ -963,6 +1058,7 @@ export default defineComponent({
       createListItem,
       createListItemData,
       deleteChecked,
+      openDeleteChecked,
       deleteListItem,
       edit,
       getLabelColor,
@@ -988,6 +1084,9 @@ export default defineComponent({
       sortByLabels,
       toggleShowChecked,
       uncheckAll,
+      openUncheckAll,
+      checkAll,
+      openCheckAll,
       updateIndexUnchecked,
       updateIndexUncheckedByLabel,
       allUnits,
@@ -995,6 +1094,7 @@ export default defineComponent({
       allUsers,
       currentUserId,
       updateSettings,
+      getTextColor,
     };
   },
   head() {

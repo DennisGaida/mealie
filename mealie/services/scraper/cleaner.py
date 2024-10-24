@@ -110,11 +110,11 @@ def clean_image(image: str | list | dict | None = None, default: str = "no image
         case [str(_), *_]:
             return [x for x in image if x]  # Only return non-null strings in list
         case [{"url": str(_)}, *_]:
-            return [x["url"] for x in image]
+            return [x["url"] for x in image if "url" in x]
         case {"url": str(image)}:
             return [image]
         case [{"@id": str(_)}, *_]:
-            return [x["@id"] for x in image]
+            return [x["@id"] for x in image if "@id" in x]
         case _:
             logger.exception(f"Unexpected type for image: {type(image)}, {image}")
             return [default]
@@ -149,7 +149,7 @@ def clean_instructions(steps_object: list | dict | str, default: list | None = N
             return [
                 {"text": _sanitize_instruction_text(instruction["text"])}
                 for instruction in steps_object
-                if instruction["text"].strip()
+                if "text" in instruction and instruction["text"].strip()
             ]
         case {0: {"text": str()}} | {"0": {"text": str()}} | {1: {"text": str()}} | {"1": {"text": str()}}:
             # Some recipes have a dict with a string key representing the index, unsure if these can
@@ -162,7 +162,7 @@ def clean_instructions(steps_object: list | dict | str, default: list | None = N
             # }
             #
             steps_object = typing.cast(dict, steps_object)
-            return clean_instructions([x for x in steps_object.values()])
+            return clean_instructions(list(steps_object.values()))
         case str(step_as_str):
             # Strings are weird, some sites return a single string with newlines
             # others returns a json string for some reasons
@@ -368,9 +368,9 @@ def clean_time(time_entry: str | timedelta | None, translator: Translator) -> No
         case timedelta():
             return pretty_print_timedelta(time_entry, translator)
         case {"minValue": str(value)}:
-            return clean_time(value)
+            return clean_time(value, translator)
         case [str(), *_]:
-            return clean_time(time_entry[0])
+            return clean_time(time_entry[0], translator)
         case datetime():
             # TODO: Not sure what to do here
             return str(time_entry)
@@ -481,7 +481,7 @@ def clean_tags(data: str | list[str]) -> list[str]:
         case [str(), *_]:
             return [tag.strip().title() for tag in data if tag.strip()]
         case str(data):
-            return clean_tags([t for t in data.split(",")])
+            return clean_tags(data.split(","))
         case _:
             return []
             # should probably raise exception
@@ -495,7 +495,7 @@ def clean_nutrition(nutrition: dict | None) -> dict[str, str]:
     list of valid keys
 
     Assumptionas:
-        - All units are supplied in grams, expect sodium which maybe be in milligrams
+        - All units are supplied in grams, expect sodium and cholesterol which maybe be in milligrams
 
     Returns:
         dict[str, str]: If the argument is None, or not a dictionary, an empty dictionary is returned
@@ -509,9 +509,10 @@ def clean_nutrition(nutrition: dict | None) -> dict[str, str]:
             if matched_digits := MATCH_DIGITS.search(val):
                 output_nutrition[key] = matched_digits.group(0).replace(",", ".")
 
-    if sodium := nutrition.get("sodiumContent", None):
-        if isinstance(sodium, str) and "m" not in sodium and "g" in sodium:
-            with contextlib.suppress(AttributeError, TypeError):
-                output_nutrition["sodiumContent"] = str(float(output_nutrition["sodiumContent"]) * 1000)
+    for key in ["sodiumContent", "cholesterolContent"]:
+        if val := nutrition.get(key, None):
+            if isinstance(val, str) and "m" not in val and "g" in val:
+                with contextlib.suppress(AttributeError, TypeError):
+                    output_nutrition[key] = str(float(output_nutrition[key]) * 1000)
 
     return output_nutrition

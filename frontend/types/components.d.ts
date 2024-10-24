@@ -6,6 +6,7 @@ import AppLoader from "@/components/global/AppLoader.vue";
 import AppToolbar from "@/components/global/AppToolbar.vue";
 import AutoForm from "@/components/global/AutoForm.vue";
 import BannerExperimental from "@/components/global/BannerExperimental.vue";
+import BannerWarning from "@/components/global/BannerWarning.vue";
 import BaseButton from "@/components/global/BaseButton.vue";
 import BaseButtonGroup from "@/components/global/BaseButtonGroup.vue";
 import BaseCardSectionTitle from "@/components/global/BaseCardSectionTitle.vue";
@@ -33,6 +34,7 @@ import ReportTable from "@/components/global/ReportTable.vue";
 import SafeMarkdown from "@/components/global/SafeMarkdown.vue";
 import StatsCards from "@/components/global/StatsCards.vue";
 import ToggleState from "@/components/global/ToggleState.vue";
+import WakelockSwitch from "@/components/global/WakelockSwitch.vue";
 import DefaultLayout from "@/components/layout/DefaultLayout.vue";
 
 declare module "vue" {
@@ -45,6 +47,7 @@ declare module "vue" {
     AppToolbar: typeof AppToolbar;
     AutoForm: typeof AutoForm;
     BannerExperimental: typeof BannerExperimental;
+    BannerWarning: typeof BannerWarning;
     BaseButton: typeof BaseButton;
     BaseButtonGroup: typeof BaseButtonGroup;
     BaseCardSectionTitle: typeof BaseCardSectionTitle;
@@ -72,6 +75,7 @@ declare module "vue" {
     SafeMarkdown: typeof SafeMarkdown;
     StatsCards: typeof StatsCards;
     ToggleState: typeof ToggleState;
+    WakelockSwitch: typeof WakelockSwitch;
     // Layout Components
     DefaultLayout: typeof DefaultLayout;
   }

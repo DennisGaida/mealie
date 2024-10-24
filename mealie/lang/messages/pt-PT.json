@@ -44,5 +44,28 @@
         "second": "segundo|segundos",
         "millisecond": "milissegundo|milissegundos",
         "microsecond": "microssegundo|microssegundos"
+    },
+    "emails": {
+        "password": {
+            "subject": "Mealie Esqueceu-se da Palavra-passe",
+            "header_text": "Esqueci-me da Palavra-passe",
+            "message_top": "Solicitou a reposição da sua palavra-passe.",
+            "message_bottom": "Clique no botão acima para redefinir a sua palavra-passe.",
+            "button_text": "Repor Palavra-passe"
+        },
+        "invitation": {
+            "subject": "Convite para aderir ao Melie",
+            "header_text": "Está convidado!",
+            "message_top": "Foi convidado para aderir ao Mealie.",
+            "message_bottom": "Clique no botão acima para aceitar o convite.",
+            "button_text": "Aceitar Convite"
+        },
+        "test": {
+            "subject": "Email de testes do Mealie",
+            "header_text": "Email de Teste",
+            "message_top": "Este é um email de teste.",
+            "message_bottom": "Clique no botão acima para testar o email.",
+            "button_text": "Abrir o Mealie"
+        }
     }
 }

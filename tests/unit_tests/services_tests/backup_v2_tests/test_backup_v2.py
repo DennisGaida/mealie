@@ -9,9 +9,11 @@ from sqlalchemy.orm import Session
 import tests.data as test_data
 from mealie.core.config import get_app_settings
 from mealie.db.db_setup import session_context
-from mealie.db.models._model_utils import GUID
+from mealie.db.models._model_utils.guid import GUID
 from mealie.db.models.group import Group
-from mealie.db.models.group.shopping_list import ShoppingList
+from mealie.db.models.household.cookbook import CookBook
+from mealie.db.models.household.mealplan import GroupMealPlanRules
+from mealie.db.models.household.shopping_list import ShoppingList
 from mealie.db.models.labels import MultiPurposeLabel
 from mealie.db.models.recipe.ingredient import IngredientFoodModel, IngredientUnitModel
 from mealie.db.models.recipe.recipe import RecipeModel
@@ -25,7 +27,7 @@ from mealie.services.backups_v2.backup_v2 import BackupV2
 def dict_sorter(d: dict) -> Any:
     possible_keys = {"created_at", "id"}
 
-    return next((d[key] for key in possible_keys if key in d and d[key]), 1)
+    return next((d[key] for key in possible_keys if d.get(key)), 1)
 
 
 # For Future Use
@@ -68,7 +70,7 @@ def test_database_restore():
     new_exporter = AlchemyExporter(settings.DB_URL)
     snapshop_2 = new_exporter.dump()
 
-    for s1, s2 in zip(snapshop_1, snapshop_2):
+    for s1, s2 in zip(snapshop_1, snapshop_2, strict=False):
         assert snapshop_1[s1].sort(key=dict_sorter) == snapshop_2[s2].sort(key=dict_sorter)
 
 
@@ -124,6 +126,9 @@ def test_database_restore_data(backup_path: Path):
             foods = session.query(IngredientFoodModel).all()
             units = session.query(IngredientUnitModel).all()
 
+            cookbooks = session.query(CookBook).all()
+            mealplan_rules = session.query(GroupMealPlanRules).all()
+
             # 2023-02-14-20.45.41_5ab195a474eb_add_normalized_search_properties
             for recipe in recipes:
                 if recipe.name:
@@ -173,6 +178,40 @@ def test_database_restore_data(backup_path: Path):
                 user_to_recipes = session.query(UserToRecipe).filter(UserToRecipe.recipe_id == recipe.id).all()
                 user_ratings = [x.rating for x in user_to_recipes if x.rating]
                 assert recipe.rating == (statistics.mean(user_ratings) if user_ratings else None)
+
+            # 2024-10-08-21.17.31_86054b40fd06_added_query_filter_string_to_cookbook_and_mealplan
+            for cookbook in cookbooks:
+                parts = []
+                if cookbook.categories:
+                    relop = "CONTAINS ALL" if cookbook.require_all_categories else "IN"
+                    vals = ",".join([f'"{cat.id}"' for cat in cookbook.categories])
+                    parts.append(f"recipe_category.id {relop} [{vals}]")
+                if cookbook.tags:
+                    relop = "CONTAINS ALL" if cookbook.require_all_tags else "IN"
+                    vals = ",".join([f'"{tag.id}"' for tag in cookbook.tags])
+                    parts.append(f"tags.id {relop} [{vals}]")
+                if cookbook.tools:
+                    relop = "CONTAINS ALL" if cookbook.require_all_tools else "IN"
+                    vals = ",".join([f'"{tool.id}"' for tool in cookbook.tools])
+                    parts.append(f"tools.id {relop} [{vals}]")
+
+                expected_query_filter_string = " AND ".join(parts)
+                assert cookbook.query_filter_string == expected_query_filter_string
+
+            for rule in mealplan_rules:
+                parts = []
+                if rule.categories:
+                    vals = ",".join([f'"{cat.id}"' for cat in rule.categories])
+                    parts.append(f"recipe_category.id CONTAINS ALL [{vals}]")
+                if rule.tags:
+                    vals = ",".join([f'"{tag.id}"' for tag in rule.tags])
+                    parts.append(f"tags.id CONTAINS ALL [{vals}]")
+                if rule.households:
+                    vals = ",".join([f'"{household.id}"' for household in rule.households])
+                    parts.append(f"household_id IN [{vals}]")
+
+                expected_query_filter_string = " AND ".join(parts)
+                assert rule.query_filter_string == expected_query_filter_string
 
     finally:
         backup_v2.restore(original_data_backup)

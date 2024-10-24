@@ -1,4 +1,4 @@
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from fastapi.testclient import TestClient
 from pydantic import UUID4
@@ -34,11 +34,13 @@ def test_new_mealplan_event(api_client: TestClient, unique_user: TestUser):
     response_json = response.json()
     initial_event_count = len(response_json["items"])
 
-    new_plan = CreatePlanEntry(date=date.today(), entry_type="dinner", recipe_id=recipe_id).model_dump(by_alias=True)
-    new_plan["date"] = date.today().isoformat()
+    new_plan = CreatePlanEntry(
+        date=datetime.now(timezone.utc).date(), entry_type="dinner", recipe_id=recipe_id
+    ).model_dump(by_alias=True)
+    new_plan["date"] = datetime.now(timezone.utc).date().isoformat()
     new_plan["recipeId"] = str(recipe_id)
 
-    response = api_client.post(api_routes.groups_mealplans, json=new_plan, headers=unique_user.token)
+    response = api_client.post(api_routes.households_mealplans, json=new_plan, headers=unique_user.token)
     assert response.status_code == 201
 
     # run the task and check to make sure a new event was created from the mealplan
@@ -63,12 +65,12 @@ def test_new_mealplan_event(api_client: TestClient, unique_user: TestUser):
     response = api_client.get(api_routes.recipes_slug(recipe_name), headers=unique_user.token)
     new_recipe_data: dict = response.json()
     recipe = RecipeSummary.model_validate(new_recipe_data)
-    assert recipe.last_made.date() == date.today()  # type: ignore
+    assert recipe.last_made.date() == datetime.now(timezone.utc).date()  # type: ignore
 
     # make sure nothing else was updated
     for data in [original_recipe_data, new_recipe_data]:
         data.pop("dateUpdated")
-        data.pop("updateAt")
+        data.pop("updatedAt")
         data.pop("lastMade")
 
     # instructions ids are generated randomly and aren't consistent between get requests
@@ -99,11 +101,13 @@ def test_new_mealplan_event_duplicates(api_client: TestClient, unique_user: Test
     response_json = response.json()
     initial_event_count = len(response_json["items"])
 
-    new_plan = CreatePlanEntry(date=date.today(), entry_type="dinner", recipe_id=recipe_id).model_dump(by_alias=True)
-    new_plan["date"] = date.today().isoformat()
+    new_plan = CreatePlanEntry(
+        date=datetime.now(timezone.utc).date(), entry_type="dinner", recipe_id=recipe_id
+    ).model_dump(by_alias=True)
+    new_plan["date"] = datetime.now(timezone.utc).date().isoformat()
     new_plan["recipeId"] = str(recipe_id)
 
-    response = api_client.post(api_routes.groups_mealplans, json=new_plan, headers=unique_user.token)
+    response = api_client.post(api_routes.households_mealplans, json=new_plan, headers=unique_user.token)
     assert response.status_code == 201
 
     # run the task multiple times and make sure we only create one event
@@ -143,13 +147,13 @@ def test_new_mealplan_events_with_multiple_recipes(api_client: TestClient, uniqu
     for recipe in recipes:
         mealplan_count_by_recipe_id[recipe.id] = 0  # type: ignore
         for _ in range(random_int(1, 5)):
-            new_plan = CreatePlanEntry(date=date.today(), entry_type="dinner", recipe_id=str(recipe.id)).model_dump(
-                by_alias=True
-            )
-            new_plan["date"] = date.today().isoformat()
+            new_plan = CreatePlanEntry(
+                date=datetime.now(timezone.utc).date(), entry_type="dinner", recipe_id=str(recipe.id)
+            ).model_dump(by_alias=True)
+            new_plan["date"] = datetime.now(timezone.utc).date().isoformat()
             new_plan["recipeId"] = str(recipe.id)
 
-            response = api_client.post(api_routes.groups_mealplans, json=new_plan, headers=unique_user.token)
+            response = api_client.post(api_routes.households_mealplans, json=new_plan, headers=unique_user.token)
             assert response.status_code == 201
             mealplan_count_by_recipe_id[recipe.id] += 1  # type: ignore
 
@@ -196,18 +200,20 @@ def test_preserve_future_made_date(api_client: TestClient, unique_user: TestUser
     recipe = RecipeSummary.model_validate(response.json())
     recipe_id = str(recipe.id)
 
-    future_dt = datetime.now() + timedelta(days=random_int(1, 10))
+    future_dt = datetime.now(timezone.utc) + timedelta(days=random_int(1, 10))
     recipe.last_made = future_dt
     response = api_client.put(
         api_routes.recipes_slug(recipe.slug), json=utils.jsonify(recipe), headers=unique_user.token
     )
     assert response.status_code == 200
 
-    new_plan = CreatePlanEntry(date=date.today(), entry_type="dinner", recipe_id=recipe_id).model_dump(by_alias=True)
-    new_plan["date"] = date.today().isoformat()
+    new_plan = CreatePlanEntry(
+        date=datetime.now(timezone.utc).date(), entry_type="dinner", recipe_id=recipe_id
+    ).model_dump(by_alias=True)
+    new_plan["date"] = datetime.now(timezone.utc).date().isoformat()
     new_plan["recipeId"] = str(recipe_id)
 
-    response = api_client.post(api_routes.groups_mealplans, json=new_plan, headers=unique_user.token)
+    response = api_client.post(api_routes.households_mealplans, json=new_plan, headers=unique_user.token)
     assert response.status_code == 201
 
     # run the task and make sure the recipe's last made date was not updated

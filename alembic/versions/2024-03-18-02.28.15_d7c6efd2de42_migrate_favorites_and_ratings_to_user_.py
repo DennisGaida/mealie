@@ -6,7 +6,7 @@ Create Date: 2024-03-18 02:28:15.896959
 
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from textwrap import dedent
 from typing import Any
 from uuid import uuid4
@@ -20,8 +20,8 @@ from alembic import op
 # revision identifiers, used by Alembic.
 revision = "d7c6efd2de42"
 down_revision = "09aba125b57a"
-branch_labels = None
-depends_on = None
+branch_labels: str | tuple[str, ...] | None = None
+depends_on: str | tuple[str, ...] | None = None
 
 
 def is_postgres():
@@ -32,9 +32,9 @@ def new_user_rating(user_id: Any, recipe_id: Any, rating: float | None = None, i
     if is_postgres():
         id = str(uuid4())
     else:
-        id = "%.32x" % uuid4().int
+        id = "%.32x" % uuid4().int  # noqa: UP031
 
-    now = datetime.now().isoformat()
+    now = datetime.now(timezone.utc).isoformat()
     return {
         "id": id,
         "user_id": user_id,
@@ -202,8 +202,6 @@ def downgrade():
     )
     op.drop_index(op.f("ix_recipes_rating"), table_name="recipes")
     op.alter_column("recipes", "rating", existing_type=sa.Float(), type_=sa.INTEGER(), existing_nullable=True)
-    op.create_unique_constraint("ingredient_units_name_group_id_key", "ingredient_units", ["name", "group_id"])
-    op.create_unique_constraint("ingredient_foods_name_group_id_key", "ingredient_foods", ["name", "group_id"])
     op.create_table(
         "users_to_favorites",
         sa.Column("user_id", sa.CHAR(length=32), nullable=True),

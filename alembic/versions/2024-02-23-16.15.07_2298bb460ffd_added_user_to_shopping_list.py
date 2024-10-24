@@ -20,8 +20,8 @@ logger = get_logger()
 # revision identifiers, used by Alembic.
 revision = "2298bb460ffd"
 down_revision = "ba1e4a6cfe99"
-branch_labels = None
-depends_on = None
+branch_labels: str | tuple[str, ...] | None = None
+depends_on: str | tuple[str, ...] | None = None
 
 
 def is_postgres():
@@ -66,7 +66,7 @@ def populate_shopping_list_users():
             user_id = find_user_id_for_group(group_id)
             if user_id:
                 session.execute(
-                    sa.text(f"UPDATE shopping_lists SET user_id=:user_id WHERE id=:id").bindparams(
+                    sa.text("UPDATE shopping_lists SET user_id=:user_id WHERE id=:id").bindparams(
                         user_id=user_id, id=list_id
                     )
                 )
@@ -74,7 +74,7 @@ def populate_shopping_list_users():
                 logger.warning(
                     f"No user found for shopping list {list_id} with group {group_id}; deleting shopping list"
                 )
-                session.execute(sa.text(f"DELETE FROM shopping_lists WHERE id=:id").bindparams(id=list_id))
+                session.execute(sa.text("DELETE FROM shopping_lists WHERE id=:id").bindparams(id=list_id))
 
 
 def upgrade():

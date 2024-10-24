@@ -102,7 +102,7 @@
           <v-icon left>
             {{ $globals.icons.calendar }}
           </v-icon>
-            {{ $t('recipe.last-made-date', { date: value ? new Date(value+"Z").toLocaleDateString($i18n.locale) : $t("general.never") } ) }}
+            {{ $t('recipe.last-made-date', { date: value ? new Date(value).toLocaleDateString($i18n.locale) : $t("general.never") } ) }}
         </v-chip>
       </div>
     </div>
@@ -114,7 +114,7 @@ import { computed, defineComponent, reactive, ref, toRefs, useContext } from "@n
 import { whenever } from "@vueuse/core";
 import { VForm } from "~/types/vuetify";
 import { useUserApi } from "~/composables/api";
-import { useGroupSelf } from "~/composables/use-groups";
+import { useHouseholdSelf } from "~/composables/use-households";
 import { Recipe, RecipeTimelineEventIn } from "~/lib/api/types/recipe";
 
 export default defineComponent({
@@ -131,7 +131,7 @@ export default defineComponent({
   setup(props, context) {
     const madeThisDialog = ref(false);
     const userApi = useUserApi();
-    const { group } = useGroupSelf();
+    const { household } = useHouseholdSelf();
     const { $auth, i18n } = useContext();
     const domMadeThisForm = ref<VForm>();
     const newTimelineEvent = ref<RecipeTimelineEventIn>({
@@ -157,7 +157,7 @@ export default defineComponent({
     );
 
     const firstDayOfWeek = computed(() => {
-      return group.value?.preferences?.firstDayOfWeek || 0;
+      return household.value?.preferences?.firstDayOfWeek || 0;
     });
 
     function clearImage() {
@@ -199,11 +199,7 @@ export default defineComponent({
         await userApi.recipes.updateLastMade(props.recipe.slug,  newTimelineEvent.value.timestamp);
 
         // update recipe in parent so the user can see it
-        // we remove the trailing "Z" since this is how the API returns it
-        context.emit(
-          "input", newTimelineEvent.value.timestamp
-            .substring(0, newTimelineEvent.value.timestamp.length - 1)
-        );
+        context.emit("input", newTimelineEvent.value.timestamp);
       }
 
       // update the image, if provided

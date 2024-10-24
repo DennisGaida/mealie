@@ -6,18 +6,13 @@ Create Date: 2023-04-13 06:47:04.617131
 
 """
 
-import sqlalchemy as sa
-
-import mealie.db.migration_types
 from alembic import op
-import alembic.context as context
-from mealie.core.config import get_app_settings
 
 # revision identifiers, used by Alembic.
 revision = "b3dbb554ba53"
 down_revision = "38514b39a824"
-branch_labels = None
-depends_on = None
+branch_labels: str | tuple[str, ...] | None = None
+depends_on: str | tuple[str, ...] | None = None
 
 
 def get_db_type():

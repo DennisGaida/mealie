@@ -11,15 +11,14 @@ from sqlalchemy import orm, select
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from text_unidecode import unidecode
 
-import mealie.db.migration_types
 from alembic import op
-from mealie.db.models._model_utils import GUID
+from mealie.db.models._model_utils.guid import GUID
 
 # revision identifiers, used by Alembic.
 revision = "5ab195a474eb"
 down_revision = "16160bf731a0"
-branch_labels = None
-depends_on = None
+branch_labels: str | tuple[str, ...] | None = None
+depends_on: str | tuple[str, ...] | None = None
 
 
 class SqlAlchemyBase(DeclarativeBase):

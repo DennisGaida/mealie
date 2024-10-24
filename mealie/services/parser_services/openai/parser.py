@@ -45,7 +45,7 @@ class OpenAIParser(ABCIngredientParser):
             ),
         ]
 
-        if service.send_db_data and self.units_by_alias:
+        if service.send_db_data and self.data_matcher.units_by_alias:
             data_injections.extend(
                 [
                     OpenAIDataInjection(
@@ -55,7 +55,7 @@ class OpenAIParser(ABCIngredientParser):
                             "find a unit in the input that does not exist in this list. This should not prevent "
                             "you from parsing that text as a unit, however it may lower your confidence level."
                         ),
-                        value=list(set(self.units_by_alias)),
+                        value=list(set(self.data_matcher.units_by_alias)),
                     ),
                 ]
             )
@@ -80,10 +80,20 @@ class OpenAIParser(ABCIngredientParser):
             tasks.append(service.get_response(prompt, message, force_json_response=True))
 
         # re-combine chunks into one response
-        responses_json = await asyncio.gather(*tasks)
-        responses = [
-            OpenAIIngredients.model_validate_json(response_json) for response_json in responses_json if responses_json
-        ]
+        try:
+            responses_json = await asyncio.gather(*tasks)
+        except Exception as e:
+            raise Exception("Failed to call OpenAI services") from e
+
+        try:
+            responses = [
+                OpenAIIngredients.parse_openai_response(response_json)
+                for response_json in responses_json
+                if responses_json
+            ]
+        except Exception as e:
+            raise Exception("Failed to parse OpenAI response") from e
+
         if not responses:
             raise Exception("No response from OpenAI")
 

@@ -1,5 +1,5 @@
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from mealie.core import root_logger
@@ -28,36 +28,29 @@ class SchedulerService:
 
 
 async def schedule_daily():
-    now = datetime.now()
-    daily_schedule_time = get_app_settings().DAILY_SCHEDULE_TIME
-    logger.debug(
-        "Current time is %s and DAILY_SCHEDULE_TIME is %s",
-        str(now),
-        daily_schedule_time,
+    now = datetime.now(timezone.utc)
+    daily_schedule_time = get_app_settings().DAILY_SCHEDULE_TIME_UTC
+    logger.debug(f"Current time is {now} and DAILY_SCHEDULE_TIME (in UTC) is {daily_schedule_time}")
+
+    next_schedule = now.replace(
+        hour=daily_schedule_time.hour, minute=daily_schedule_time.minute, second=0, microsecond=0
     )
-    try:
-        hour_target, minute_target = _parse_daily_schedule_time(daily_schedule_time)
-    except Exception:
-        logger.exception(f"Unable to parse {daily_schedule_time=}")
-        hour_target = 23
-        minute_target = 45
+    delta = next_schedule - now
+    if delta < timedelta(0):
+        next_schedule = next_schedule + timedelta(days=1)
+        delta = next_schedule - now
 
-    hours_until = ((hour_target - now.hour) % 24) or 24
-    minutes_until = (minute_target - now.minute) % 60
-    logger.debug("Hours until %s and minutes until %s", str(hours_until), str(minutes_until))
+    hours_until, seconds_reminder = divmod(delta.total_seconds(), 3600)
+    minutes_until, seconds_reminder = divmod(seconds_reminder, 60)
+    seconds_until = round(seconds_reminder)
+    logger.debug("Time left: %02d:%02d:%02d", hours_until, minutes_until, seconds_until)
 
-    delta = timedelta(hours=hours_until, minutes=minutes_until)
-    target_time = (now + delta).replace(microsecond=0, second=0)
+    target_time = next_schedule.replace(microsecond=0, second=0)
     logger.info("Daily tasks scheduled for %s", str(target_time))
-    wait_seconds = (target_time - now).total_seconds()
+
+    wait_seconds = delta.total_seconds()
     await asyncio.sleep(wait_seconds)
     await run_daily()
-
-
-def _parse_daily_schedule_time(time):
-    hour_target = int(time.split(":")[0])
-    minute_target = int(time.split(":")[1])
-    return hour_target, minute_target
 
 
 def _scheduled_task_wrapper(callable):

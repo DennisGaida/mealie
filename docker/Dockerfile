@@ -78,6 +78,7 @@ RUN echo "crfpp-container"
 # Production Image
 ###############################################
 FROM python-base as production
+LABEL org.opencontainers.image.source="https://github.com/mealie-recipes/mealie"
 ENV PRODUCTION=true
 ENV TESTING=false
 
@@ -91,6 +92,9 @@ RUN apt-get update \
     libldap-common \
     libldap-2.5 \
     && rm -rf /var/lib/apt/lists/*
+
+# create directory used for Docker Secrets
+RUN mkdir -p /run/secrets
 
 # copying poetry and venv into image
 COPY --from=builder-base $POETRY_HOME $POETRY_HOME

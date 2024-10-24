@@ -44,5 +44,28 @@
         "second": "segundo|segundos",
         "millisecond": "milisegundo|milisegundos",
         "microsecond": "microsegundo|microsegundos"
+    },
+    "emails": {
+        "password": {
+            "subject": "Mealie Olvidó la contraseña",
+            "header_text": "Olvidé mi contraseña",
+            "message_top": "Has solicitado restablecer tu contraseña.",
+            "message_bottom": "Por favor, haz click en el botón de arriba para reestablecer tu contraseña.",
+            "button_text": "Restablecer contraseña"
+        },
+        "invitation": {
+            "subject": "Invitación para unirse a Mealie",
+            "header_text": "¡Estás invitado!",
+            "message_top": "Has sido invitado a unirte a Mealie.",
+            "message_bottom": "Por favor, haga clic en el botón de arriba para aceptar la invitación.",
+            "button_text": "Aceptar invitación"
+        },
+        "test": {
+            "subject": "Mealie Correo de prueba",
+            "header_text": "Correo de prueba",
+            "message_top": "Este es un correo de prueba.",
+            "message_bottom": "Por favor, haz clic en el botón de arriba para probar el correo.",
+            "button_text": "Abrir Mealie"
+        }
     }
 }

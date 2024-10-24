@@ -101,6 +101,7 @@ import { computed, defineComponent, ref, useContext, useRoute, useRouter, watch 
 import { invoke, until } from "@vueuse/core";
 import draggable from "vuedraggable";
 import RecipeIngredientEditor from "~/components/Domain/Recipe/RecipeIngredientEditor.vue";
+import { alert } from "~/composables/use-toast";
 import { useAppInfo, useUserApi } from "~/composables/api";
 import { useRecipe } from "~/composables/recipes";
 import { useFoodData, useFoodStore, useUnitData, useUnitStore } from "~/composables/store";
@@ -239,6 +240,9 @@ export default defineComponent({
         errors.value = data.map((ing, index: number) => {
           return processIngredientError(ing, index);
         });
+      } else {
+        alert.error(i18n.t("events.something-went-wrong") as string);
+        parsedIng.value = [];
       }
     }
 
@@ -268,12 +272,10 @@ export default defineComponent({
     const errors = ref<Error[]>([]);
 
     function checkForUnit(unit?: IngredientUnit | CreateIngredientUnit) {
-      // @ts-expect-error; we're just checking if there's an id on this unit and returning a boolean
       return !!unit?.id;
     }
 
     function checkForFood(food?: IngredientFood | CreateIngredientFood) {
-      // @ts-expect-error; we're just checking if there's an id on this food and returning a boolean
       return !!food?.id;
     }
 

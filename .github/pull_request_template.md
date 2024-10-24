@@ -1,12 +1,13 @@
 <!--
   This template provides some ideas of things to include in your PR description.
-  
+
   To start, try providing a short summary of your changes in the Title above. We follow Conventional Commits syntax, please ensure your title is prefixed with one of:
   - `feat: `
   - `fix: `
   - `docs: `
   - `chore: `
-  
+  - `dev:`
+
   If a section of the PR template does not apply to this PR, then delete that section.
 
   PLEASE READ:
@@ -27,10 +28,11 @@ _(REQUIRED)_
   Delete any of the following that do not apply:
  -->
 
-- bug
-- cleanup
-- documentation
 - feature
+- bug
+- documentation
+- cleanup
+- dev (Internal development)
 
 ## What this PR does / why we need it:
 

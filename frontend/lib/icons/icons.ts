@@ -17,6 +17,7 @@ import {
   mdiAccountGroup,
   mdiSlotMachine,
   mdiHome,
+  mdiHomeAccount,
   mdiMagnify,
   mdiPotSteamOutline,
   mdiTranslate,
@@ -149,6 +150,8 @@ import {
   mdiRotateRight,
   mdiBookOpenPageVariant,
   mdiFileCabinet,
+  mdiSilverwareForkKnife,
+  mdiCodeTags,
 } from "@mdi/js";
 
 export const icons = {
@@ -190,6 +193,7 @@ export const icons = {
   clockOutline: mdiClockTimeFourOutline,
   codeBraces: mdiCodeJson,
   codeJson: mdiCodeJson,
+  codeTags: mdiCodeTags,
   cog: mdiCog,
   commentTextMultiple: mdiCommentTextMultiple,
   commentTextMultipleOutline: mdiCommentTextMultipleOutline,
@@ -225,6 +229,7 @@ export const icons = {
   heart: mdiHeart,
   heartOutline: mdiHeartOutline,
   home: mdiHome,
+  household: mdiHomeAccount,
   import: mdiImport,
   information: mdiInformation,
   informationVariant: mdiInformationVariant,
@@ -249,6 +254,7 @@ export const icons = {
   search: mdiMagnify,
   shareVariant: mdiShareVariant,
   shuffleVariant: mdiShuffleVariant,
+  silverwareForkKnife: mdiSilverwareForkKnife,
   sort: mdiSort,
   sortAscending: mdiSortAscending,
   sortDescending: mdiSortDescending,
