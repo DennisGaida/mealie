@@ -57,6 +57,7 @@ load_secrets() {
 
         "OIDC_CONFIGURATION_URL"
         "OIDC_CLIENT_ID"
+        "OIDC_CLIENT_SECRET"
 
         "OPENAI_BASE_URL"
         "OPENAI_API_KEY"
